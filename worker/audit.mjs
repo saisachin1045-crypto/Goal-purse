@@ -219,6 +219,19 @@ async function backfillForm(bucket,after){
  const indexed=await Promise.all(page.objects.map(async item=>indexResult(bucket,await readObject(bucket,item.key))));
  return {processed:indexed.length,indexed:indexed.filter(Boolean).length,next:page.truncated?page.cursor:null};
 }
+function forecastResultComparison(record) {
+ if (!record?.final || !record.prediction) return null;
+ const [home, away] = record.prediction;
+ const [finalHome, finalAway] = record.final;
+ if (![home, away, finalHome, finalAway].every(Number.isInteger)) return null;
+ return {
+  forecastAt: record.at, forecastStage: record.stage, forecastMinute: record.minute,
+  predictedScore: home+'-'+away, finalScore: finalHome+'-'+finalAway,
+  exactScoreHit: home===finalHome && away===finalAway,
+  outcomeHit: Math.sign(home-away)===Math.sign(finalHome-finalAway),
+  totalGoalsAbsoluteError: Math.abs(home+away-finalHome-finalAway)
+ };
+}
 async function sweep(bucket,after){
  if(!bucket)throw Error('Storage unavailable');
  const feed=await readFeed('f_1_0_0_en_1',2000,fixtures);
@@ -232,8 +245,10 @@ async function sweep(bucket,after){
     await bucket.put('results/'+m.id,JSON.stringify(m));
     await indexResult(bucket,m);
     const record=await readObject(bucket,'open/'+m.id);
-    if(record)await finishRecord(bucket,record,m);
-    return {id:m.id,status:record?'graded or awaiting regulation result':'result archived'};
+    const settled=record ? await finishRecord(bucket,record,m) : await readObject(bucket,'done/'+m.id);
+    const comparison=forecastResultComparison(settled);
+    return {id:m.id,status:comparison?'graded':record?'awaiting regulation result':'result archived',
+      ...(comparison?{comparison}:{})};
    }
    const response=await audit(bucket,m.id),record=await response.json();
    return {id:m.id,status:record?.prediction?'forecast saved':'insufficient data or unsupported stage'};
