@@ -34,7 +34,7 @@ export default {async fetch(request,env,ctx){
    if(!/^[a-zA-Z0-9]{0,12}$/.test(after))return Response.json({error:'Invalid cursor'},{status:400});
    try{
     const result=await sweep(env?.BUCKET,after);
-    ctx.waitUntil(exportForecastTrace(env,{name:'GoalPulse forecast collection',children:result.results.map(row=>({name:'Process fixture',input:{fixture:row.id},output:{status:row.status}}))}));
+    ctx.waitUntil(exportForecastTrace(env,{name:'GoalPulse forecast collection',children:result.results.map(row=>({name:row.comparison?'Compare forecast with final score':'Process fixture',input:{fixture:row.id},output:{status:row.status,...row.comparison}}))}));
     return Response.json(result,{headers:{'Cache-Control':'no-store'}})}
    catch{return Response.json({error:'Collection unavailable'},{status:503})}
   }
