@@ -245,6 +245,7 @@ function forecast(m,entry,auditRecord){
   const split=splitForecast(m,n,hr,ar,timing.share);
   const result=scoreForecast(m.hg,m.ag,hr,ar,90*(1-split.left)),[best,...alternatives]=result.scores;
   const percent=p=>(p*100).toFixed(1)+'%';
+  recordBrowserForecast(m.id,n,best);
   const scenario=scoreScenario(split,best);
   el('prediction').innerHTML='<div class="pick"><div><b>Likely final score</b><small>'+percent(best.probability)+' exact-score chance · '+scenario[2]+' total goals</small></div><strong>'+best.home+' – '+best.away+'</strong></div>'+alternatives.map(x=>'<div class="alt"><span>Other score &nbsp; <b>'+x.home+' – '+x.away+'</b></span><span>'+percent(x.probability)+'</span></div>').join('');
   el('prediction').insertAdjacentHTML('beforeend','<h3>Match outcome</h3><div class="odds">'+Object.entries(result.outcomes).map(([label,v])=>'<div><small>'+({home:'Home win',draw:'Draw',away:'Away win'}[label])+'</small><strong>'+percent(v)+'</strong></div>').join('')+'</div>');

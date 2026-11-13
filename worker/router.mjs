@@ -13,7 +13,7 @@ async function readFeed(key,ttl,parse,env){
 }
 export default {async fetch(request,env,ctx){
   const path=new URL(request.url).pathname;
-  if(path in assets) return new Response(assets[path],{headers:{'Content-Type':path.endsWith('.js')?'text/javascript; charset=utf-8':'text/html; charset=utf-8'}});
+  if(path in assets) return new Response((path==='/live.js'?browserTraceConfig(env):'')+assets[path],{headers:{'Content-Type':path.endsWith('.js')?'text/javascript; charset=utf-8':'text/html; charset=utf-8'}});
   if(/^\/api\/audit\/[A-Za-z0-9]{6,12}$/.test(path)&&request.method==='POST'){
    try{return await audit(env?.BUCKET,path.split('/').pop())}catch{return Response.json({error:'Forecast archive unavailable'},{status:503})}
   }
@@ -32,7 +32,10 @@ export default {async fetch(request,env,ctx){
   if(path==='/api/collect'&&request.method==='POST'){
    const after=new URL(request.url).searchParams.get('after')||'';
    if(!/^[a-zA-Z0-9]{0,12}$/.test(after))return Response.json({error:'Invalid cursor'},{status:400});
-   try{return Response.json(await sweep(env?.BUCKET,after),{headers:{'Cache-Control':'no-store'}})}
+   try{
+    const result=await sweep(env?.BUCKET,after);
+    ctx.waitUntil(exportForecastTrace(env,{name:'GoalPulse forecast collection',children:result.results.map(row=>({name:'Process fixture',input:{fixture:row.id},output:{status:row.status}}))}));
+    return Response.json(result,{headers:{'Cache-Control':'no-store'}})}
    catch{return Response.json({error:'Collection unavailable'},{status:503})}
   }
   let key,parse,ttl;
