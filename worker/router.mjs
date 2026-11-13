@@ -14,6 +14,43 @@ async function readFeed(key,ttl,parse,env){
 export default {async fetch(request,env,ctx){
   const path=new URL(request.url).pathname;
   if(path in assets) return new Response((path==='/live.js'?browserTraceConfig(env):'')+assets[path],{headers:{'Content-Type':path.endsWith('.js')?'text/javascript; charset=utf-8':'text/html; charset=utf-8'}});
+  if(path==='/api/telemetry/forecast' && request.method==='POST'){
+    const origin=request.headers.get('Origin');
+    const ownOrigin=new URL(request.url).origin;
+    const fetchSite=request.headers.get('Sec-Fetch-Site');
+    if((origin && origin!==ownOrigin)||(fetchSite && !['same-origin','none'].includes(fetchSite)))
+      return Response.json({error:'Cross-origin telemetry denied'},{status:403});
+    if(!request.headers.get('Content-Type')?.toLowerCase().startsWith('application/json'))
+      return Response.json({error:'Expected JSON telemetry'},{status:415});
+    if(Number(request.headers.get('Content-Length')||0)>8192)
+      return Response.json({error:'Telemetry payload too large'},{status:413});
+    let data;
+    try {
+      const raw=await request.text();
+      if(raw.length>8192)return Response.json({error:'Telemetry payload too large'},{status:413});
+      data=JSON.parse(raw);
+    } catch {return Response.json({error:'Invalid JSON'},{status:400})}
+    const input=data?.input,output=data?.output;
+    if(!input || typeof input!=='object'||Array.isArray(input)||!output||typeof output!=='object'||
+       typeof input.fixture!=='string'||!/^[A-Za-z0-9]{6,12}$/.test(input.fixture)||
+       !Array.isArray(input.currentScore)||input.currentScore.length!==2||
+       !input.currentScore.every(x=>Number.isInteger(x)&&x>=0&&x<100)||
+       !Number.isInteger(output.home)||!Number.isInteger(output.away)||
+       !Number.isFinite(output.exactScoreProbability)||
+       output.home<0||output.home>100||output.away<0||output.away>100)
+      return Response.json({error:'Invalid forecast telemetry fields'},{status:400});
+    const evaluations=evaluateForecast(input,output);
+    const result=await exportForecastTrace(env,{
+      name:'GoalPulse browser forecast',input,output,
+      children:[
+        {name:'Forecast score consistency',kind:'guardrail',input:input.currentScore,output,
+          passed:evaluations.scoreConsistency},
+        {name:'Forecast probability validity',kind:'guardrail',input:output.exactScoreProbability,output,
+          passed:evaluations.probabilityValidity}
+      ]
+    });
+    return Response.json({...result,evaluations},{status:result.exported?200:502,headers:{'Cache-Control':'no-store'}});
+  }
   if(/^\/api\/audit\/[A-Za-z0-9]{6,12}$/.test(path)&&request.method==='POST'){
    try{return await audit(env?.BUCKET,path.split('/').pop())}catch{return Response.json({error:'Forecast archive unavailable'},{status:503})}
   }
