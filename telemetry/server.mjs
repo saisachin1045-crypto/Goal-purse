@@ -2,7 +2,7 @@ async function exportForecastTrace(env, trace) {
   if (!env?.NEATLOGS_API_KEY) return;
   try {
     const response = await fetch(env.NEATLOGS_ENDPOINT + '/v1/trace', {
-      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(5000),
+      method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(5000),
       headers: {Authorization: 'Bearer ' + env.NEATLOGS_API_KEY, 'Content-Type': 'application/json'},
       body: JSON.stringify(trace)
     });
