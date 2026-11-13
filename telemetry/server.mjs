@@ -44,7 +44,7 @@ async function exportForecastTrace(env, trace) {
       ...pbBytes(1,traceId), ...pbBytes(2,id),
       ...(parent ? pbBytes(4,parent) : []), ...pbText(5,name),
       ...pbTimestamp(7,at),...pbTimestamp(8,Date.now()),
-      ...attributes(values),...pbBytes(15,[8,1]) // Status: OK
+      ...attributes(values),...pbBytes(15,[24,1]) // OTLP Status.code = OK (field 3)
     ]);
   }
   let spans = span(trace.name,rootId,null,{
