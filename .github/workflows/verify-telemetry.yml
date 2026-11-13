@@ -1,0 +1,19 @@
+name: GoalPulse telemetry checks
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test telemetry pass/fail and mocked OTLP
+        run: node scripts/test-telemetry.mjs
+      - name: Build worker
+        run: node scripts/build.mjs
+      - name: Validate worker artifact
+        run: node scripts/validate-artifact.mjs
